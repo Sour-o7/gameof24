@@ -1,8 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define OPCOUNT 4
-
 struct node;
 
 typedef struct expression {
@@ -44,14 +42,18 @@ node* constructNumber(int number) {
     return n;
 }
 
+// Get the value of an equation
 int getValue(node* root) {
     if (!root->isExpression) {
         return root->value.number;
     }
 
+    // Get the value of the left side
     int a = getValue(root->value.expr.left);
+    // Get the value of the right side
     int b = getValue(root->value.expr.right);
 
+    // Calculate the value
     switch (root->value.expr.operator) {
         case '+': return a + b;
         case '-': return a - b;
@@ -60,17 +62,21 @@ int getValue(node* root) {
     }
 }
 
-void setNumbers(node* root, int size, int numbers[]) {
+int setNumbers(node* root, int size, int numbers[]) {
     if (root->isExpression) {
-        int leftSize = 1 + root->value.expr.left->isExpression;
-        setNumbers(root->value.expr.left, leftSize, numbers);
-        setNumbers(root->value.expr.right, size - leftSize, &numbers[leftSize]);
+        // Set leftSize = the amount of numbers on the left side
+        int leftSize = setNumbers(root->value.expr.left, size, numbers);
+        // Set rightSize = the amount of numbers on the right size
+        int rightSize = setNumbers(root->value.expr.right, size - leftSize, &numbers[leftSize]);
+        return leftSize + rightSize;
     } else {
         root->value.number = numbers[0];
+        return 1;
     }
 }
 
 void freeEquation(node* root) {
+    // If the node is an expression, first free the left and right
     if (root->isExpression) {
         freeEquation(root->value.expr.left);
         freeEquation(root->value.expr.right);
@@ -79,6 +85,7 @@ void freeEquation(node* root) {
     free(root);
 }
 
+// Shift all elements to the left by 1, and move the first to the end
 void rotate(int size, int numbers[]) {
     int first = numbers[0];
     for (int i = 1; i < size; i++) {
@@ -87,8 +94,10 @@ void rotate(int size, int numbers[]) {
     numbers[size - 1] = first;
 }
 
-// Might need to swap - and / to check both cases
+// Might need to swap - and / to check both cases?
+// Unknown if it is necessary
 node* calculateEquation(int size, int numbers[], int goal) {
+    // If there is only 1 element left, return it if it is equal to goal
     if (size == 1) {
         if (goal != numbers[0]) {
             return NULL;
@@ -96,13 +105,15 @@ node* calculateEquation(int size, int numbers[], int goal) {
         return constructNumber(numbers[0]);            
     }
     
+    // Set the right equal to the first element
     node *right = constructNumber(numbers[0]);
     node *left = NULL;
     char operator = '+';
 
+    // let k = the amount of numbers on the right side of the equation
     for (int k = 1; k <= (size + 1) / 2; k++) {
         for (int i = 0; i < size; i++) {
-            rotate(size, numbers);
+            // Set the numbers on the right equation to the numbers in numbers[]
             setNumbers(right, k, numbers);
             
             int rValue = getValue(right);
@@ -140,11 +151,14 @@ node* calculateEquation(int size, int numbers[], int goal) {
                 operator = '/';
                 break;
             }
+            rotate(size, numbers);
         }
         
         if (left != NULL) {
+            // Found valid equation
             break;
         } else {
+            // Add the another number to the right equation
             node* n = malloc(sizeof(node));
             n->isExpression = 1;
             n->value.expr.right = right;
@@ -154,12 +168,13 @@ node* calculateEquation(int size, int numbers[], int goal) {
         }
     }
     
-    
+    // If we failed to find anything, clean up and return NULL
     if (left == NULL) {
         freeEquation(right);
         return NULL;
     }
     
+    // Construct equation and return it
     node* n = malloc(sizeof(node));
     n->isExpression = 1;
     n->value.expr.left = left;
