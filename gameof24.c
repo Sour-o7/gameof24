@@ -42,6 +42,15 @@ node* constructNumber(int number) {
     return n;
 }
 
+char getNextOperator(char operator) {
+    switch(operator) {
+        case '+': return '-';
+        case '-': return '*';
+        case '*': return '/';
+        case '/': return '+';
+    }
+}
+
 // Get the value of an equation
 int getValue(node* root) {
     if (!root->isExpression) {
@@ -63,6 +72,10 @@ int getValue(node* root) {
 }
 
 int setNumbers(node* root, int size, int numbers[]) {
+    if (size == 0) {
+        return 0;
+    }
+    
     if (root->isExpression) {
         // Set leftSize = the amount of numbers on the left side
         int leftSize = setNumbers(root->value.expr.left, size, numbers);
@@ -73,6 +86,24 @@ int setNumbers(node* root, int size, int numbers[]) {
         root->value.number = numbers[0];
         return 1;
     }
+}
+
+int isValidEquation(node* root) {
+    if (!root->isExpression) {
+        return 1;
+    }
+    
+    int left = isValidEquation(root->value.expr.left);
+    int right = isValidEquation(root->value.expr.left);
+    int isValid = left && right;
+    
+    if (root->value.expr.operator == '/') {
+        int lv = getValue(root->value.expr.left);
+        int rv = getValue(root->value.expr.right);
+        isValid = isValid && lv % rv == 0;
+    }
+    
+    return isValid;
 }
 
 void freeEquation(node* root) {
@@ -115,6 +146,10 @@ node* calculateEquation(int size, int numbers[], int goal) {
         for (int i = 0; i < size; i++) {
             // Set the numbers on the right equation to the numbers in numbers[]
             setNumbers(right, k, numbers);
+            if (!isValidEquation(right)) {
+                rotate(size, numbers);
+                continue;
+            }
             
             int rValue = getValue(right);
            
@@ -158,12 +193,18 @@ node* calculateEquation(int size, int numbers[], int goal) {
             // Found valid equation
             break;
         } else {
+            if (right->isExpression && right->value.expr.operator != '/') {
+                right->value.expr.operator = getNextOperator(right->value.expr.operator);
+                k--;
+                continue;
+            }
+            
             // Add the another number to the right equation
             node* n = malloc(sizeof(node));
             n->isExpression = 1;
             n->value.expr.right = right;
             n->value.expr.left = constructNumber(numbers[1]);
-            n->value.expr.operator = '/';
+            n->value.expr.operator = '+';
             right = n;
         }
     }
