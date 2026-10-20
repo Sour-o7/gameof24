@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define OPCOUNT 4
+
 struct node;
 
 typedef struct expression {
@@ -42,7 +44,49 @@ node* constructNumber(int number) {
     return n;
 }
 
-// TODO: Allow expression on both left and right
+int getValue(node* root) {
+    if (!root->isExpression) {
+        return root->value.number;
+    }
+
+    int a = getValue(root->value.expr.left);
+    int b = getValue(root->value.expr.right);
+
+    switch (root->value.expr.operator) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '*': return a * b;
+        case '/': return a / b;
+    }
+}
+
+void setNumbers(node* root, int size, int numbers[]) {
+    if (root->isExpression) {
+        int leftSize = 1 + root->value.expr.left->isExpression;
+        setNumbers(root->value.expr.left, leftSize, numbers);
+        setNumbers(root->value.expr.right, size - leftSize, &numbers[leftSize]);
+    } else {
+        root->value.number = numbers[0];
+    }
+}
+
+void freeEquation(node* root) {
+    if (root->isExpression) {
+        freeEquation(root->value.expr.left);
+        freeEquation(root->value.expr.right);
+    }
+    
+    free(root);
+}
+
+void rotate(int size, int numbers[]) {
+    int first = numbers[0];
+    for (int i = 1; i < size; i++) {
+        numbers[i - 1] = numbers[i];
+    }
+    numbers[size - 1] = first;
+}
+
 // Might need to swap - and / to check both cases
 node* calculateEquation(int size, int numbers[], int goal) {
     if (size == 1) {
@@ -54,54 +98,65 @@ node* calculateEquation(int size, int numbers[], int goal) {
     
     node *right = constructNumber(numbers[0]);
     node *left = NULL;
-    char operator;
+    char operator = '+';
 
-    for (int i = 0; i < size; i++) {
-        int temp = numbers[0];
-        numbers[0] = numbers[i];
-        numbers[i] = temp;
-        right->value.number = numbers[0];
-        
-        // Addition
-        int subgoal = goal - numbers[0];
-        left = calculateEquation(size - 1, &numbers[1], subgoal);
-        if (left != NULL) {
-            printf("+\n");
-            operator = '+';
-            break;
-        }
-        
-        // Subtraction
-        subgoal = goal + numbers[0];
-        left = calculateEquation(size - 1, &numbers[1], subgoal);
-        if (left != NULL) {
-            printf("-\n");
-            operator = '-';
-            break;
-        }
-        
-        // Multiplication
-        if (goal % numbers[0] == 0) {
-            subgoal = goal / numbers[0];
-            left = calculateEquation(size - 1, &numbers[1], subgoal);
+    for (int k = 1; k <= (size + 1) / 2; k++) {
+        for (int i = 0; i < size; i++) {
+            rotate(size, numbers);
+            setNumbers(right, k, numbers);
+            
+            int rValue = getValue(right);
+           
+            // Addition
+            int subgoal = goal - rValue;
+            left = calculateEquation(size - k, &numbers[k], subgoal);
             if (left != NULL) {
-                printf("*\n");
-                operator = '*';
+                operator = '+';
+                break;
+            }
+            
+            // Subtraction
+            subgoal = goal + rValue;
+            left = calculateEquation(size - k, &numbers[k], subgoal);
+            if (left != NULL) {
+                operator = '-';
+                break;
+            }
+            
+            // Multiplication
+            if (rValue > 0 && goal % rValue == 0) {
+                subgoal = goal / rValue;
+                left = calculateEquation(size - k, &numbers[k], subgoal);
+                if (left != NULL) {
+                    operator = '*';
+                    break;
+                }
+            }
+            
+            // Division
+            subgoal = goal * rValue;
+            left = calculateEquation(size - k, &numbers[k], subgoal);
+            if (left != NULL) {
+                operator = '/';
                 break;
             }
         }
         
-        // Division
-        subgoal = goal * numbers[0];
-        left = calculateEquation(size - 1, &numbers[1], subgoal);
         if (left != NULL) {
-            printf("/\n");
-            operator = '/';
             break;
+        } else {
+            node* n = malloc(sizeof(node));
+            n->isExpression = 1;
+            n->value.expr.right = right;
+            n->value.expr.left = constructNumber(numbers[1]);
+            n->value.expr.operator = '/';
+            right = n;
         }
     }
     
-    if (left == NULL || right == NULL) {
+    
+    if (left == NULL) {
+        freeEquation(right);
         return NULL;
     }
     
@@ -114,23 +169,11 @@ node* calculateEquation(int size, int numbers[], int goal) {
     return n;
 }
 
-void freeEquation(node* root) {
-    if (root->isExpression) {
-        freeEquation(root->value.expr.left);
-        freeEquation(root->value.expr.right);
-    }
-    
-    free(root);
-}
-
 int main(int argc, char* argv[]) {
     int numbers[4];
     for (int i = 0; i < 4; i++) {
         scanf("%d", &numbers[i]);
     }
-    
-    //int numbers[] = {4, 1, 1};
-    //node* eq = calculateEquation(3, numbers, 3);
     
     node* eq = calculateEquation(4, numbers, 24);
     if (eq == NULL) {
@@ -138,5 +181,5 @@ int main(int argc, char* argv[]) {
     } else {
         printEquation(eq);  
         freeEquation(eq);
-    }    
+    }
 }
