@@ -125,8 +125,6 @@ void rotate(int size, int numbers[]) {
     numbers[size - 1] = first;
 }
 
-// Might need to swap - and / to check both cases?
-// Unknown if it is necessary
 node* calculateEquation(int size, int numbers[], int goal) {
     // If there is only 1 element left, return it if it is equal to goal
     if (size == 1) {
@@ -233,9 +231,10 @@ int main(int argc, char* argv[]) {
     
     node* eq = calculateEquation(4, numbers, 24);
     if (eq == NULL) {
-        printf("No equation");
+        printf("No equation\n");
     } else {
-        printEquation(eq);  
+        printEquation(eq);
+        printf("\n");
         freeEquation(eq);
     }
 }

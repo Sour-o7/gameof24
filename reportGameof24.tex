@@ -1,0 +1,395 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage{a4wide}
+\usepackage[english]{babel}
+\usepackage{listings}
+\usepackage{color}
+\definecolor{Gray}{gray}{0.95}
+
+% This is the list style for displaying C source code:
+\lstdefinestyle{code}{
+    language = C,					% The language of the code snippets
+    basicstyle = \small\ttfamily,	% Font of the text
+    numbers = left,					% Position of the line numbers
+    numberstyle = \footnotesize,	% Style of line numbers
+    frame = tb,				        % Style of surrounding frame
+    framextopmargin=.75mm,         % Space margin top
+    framexbottommargin=.75mm,      % Space margin bottom
+    framexleftmargin=2mm,          % Space margin left
+    framexrightmargin=2mm,         % Space margin right
+    tabsize = 3,					% Size of tab character
+    breaklines = true,             % Wrap lines of code that are too long
+    columns = fullflexible,			
+    showstringspaces = false,
+    backgroundcolor = \color{Gray}
+}
+
+% This is the list style for displaying input/output. It is different from the style above, since you don't need C keywords to be highlighted in these listings. Line numbers are also emitted in this style.
+\lstdefinestyle{stdio}{
+    basicstyle = \small\ttfamily,	% Font of the text
+    frame = tb,				        % Style of the surrounding frame
+    framextopmargin=.75mm,         % Space margin top
+    framexbottommargin=.75mm,      % Space margin bottom
+    framexleftmargin=2mm,          % Space margin left
+    framexrightmargin=2mm,         % Space margin right
+    tabsize = 3,					% Size of tab character
+    breaklines = true,             % Wrap lines of text that are too long
+    columns = flexible,			
+    showstringspaces = false,
+    backgroundcolor = \color{Gray}
+}
+
+\title{Game of 24}
+\author{S.P. Wong \& J. Huiszoon\\
+        s.p.wong@student.rug.nl \& j.huiszoon@student.rug.nl}
+%------------------------------------------------------------%
+% This is where your document starts:
+
+\begin{document}
+\maketitle
+
+\section{Problem description}
+This problem requires a programme that solves ‘the Game of 24’. The user provides four integer numbers between 1 and 10 (based on a full-deck of cards, without the jack, queen, king and joker). The programme must determine whether these numbers are able to be combined to obtain the total value of 24, using only four arithmetic operations: addition, subtraction, multiplication and division. 
+
+Each of these four numbers must be used exactly once, while parentheses can be used to determine the order of the operations. If a valid solution exists, the programme should print the mathematical expression that equals 24. If no solution exists, the programme should inform the user that there is no solution possible.
+
+\section{Problem analysis}
+We can interpret the problem as follows: A set of given numbers can be turned into a valid equation that equals 24 if it can be split into 2 sub-equations that when joined with an operator will equal 24. That is a set $A$ can be turned into a valid equation $a$ if $B,C \subset A$, $|C| < |B|$, and either
+\begin{itemize}
+\item $a = b + c$
+\item $a = b - c$
+\item $a = b \cdot c$
+\item or $a = \frac{b}{c}$ where $b$ mod $c = 0$
+\end{itemize}
+where $b$ and $c$ are equations consisting of only the elements in $B$ and $C$ and the basic operators.
+
+Equations can continue to be split up like this until either $|A| = 1$, where $a$ is equal to the only element of $A$, or until we cannot find a valid equation for $b$ and $c$ such that it equals $a$.
+By manipulating the equation, assuming we know $a$ and $c$, we can find $b$ where $b$ is equal to one of the following; 
+\begin{itemize}
+\item $a-c=b$ 
+\item $a+c=b$ 
+\item $\frac{a}{c}=b$ where c is not 0 
+\item $a \cdot c=b$ where $b$ mod $c = 0$
+\end{itemize}
+By setting a equal to 24, and iterating c through all possible values, we can find what b must equal for c to be valid. We can then repeat the process, this time setting a to what we found for b, and repeat until we find valid values for b and c.
+
+\section{Design}
+Due to the recursive nature of the program, as well as to keep the complexity of printing the final equation simple, we elected to use a node tree to represent the equations in this program. Each node is either an equation or a number. Equation nodes contain a pointer to a left and right node, as well as an operator. Number nodes only contain a number. 
+
+First the 4 numbers in set $A$ are read from the standard input and stored in the array {\tt numbers}. The function calculateEquation is called with the {\tt size of numbers}, {\tt numbers}, and the {\tt goal} of {\tt 24}. We check if the result is a NULL pointer, and print “No equation” if so. Otherwise, we print the resulting equation and clean up the allocated memory before we terminate.
+
+In the function calculateEquation, we first check if the size of {\tt numbers} is 1. If the {\tt size} is 1 and the {\tt goal} equals the {\tt number}, then we construct a new number node set to the value of the {\tt number}. If it does not, then we return NULL, indicating that there is no such equation that can equal the goal.
+
+If the size of numbers is not 1, then we set $c$ (stored in variable {\tt right}) to the first number in the array. We also create a variable called {\tt operator} to store the final operator we need to construct $a$. We check to see if there is a $b$ (stored in variable {\tt left}) which satisfies one of the equations we listed in the analysis. We do this by plugging in $a$ and $c$ into each of our equations, then recursively calling calculateEquation with $b$ as our new {\tt goal}, and {\tt numbers} excluding the numbers we used for $c$. If we found a valid $b$, then we set {\tt right} to the returned node pointer and update {\tt operator} to the corresponding operation. If we fail to find an equation $b$, then we rotate the array and try again with the next number for $c$.
+
+Should we fail to find a value for $b$ when $c$ is only a number node, we construct a new equation of the first 2 elements of {\tt numbers} and set $c$ to it. We then repeat the process of rotating through the numbers, this time also rotating through the operators as well. We will continue this process until $|C| > |B|$, in which case there is no possible solution.
+
+After concluding all possible iterations, then if there is no valid $b$ that exists, then $a$ does not exist either. We clean up the memory that we used, then return NULL to indicate a failed search.
+If $b$ does exist, then we return a new equation constructed using the variables {\tt left}, {\tt right}, and {\tt operator}.
+
+
+\section{Program code}
+\begin{lstlisting}[style = code, title = gameof24.c]
+#include <stdlib.h>
+#include <stdio.h>
+
+struct node;
+
+typedef struct expression {
+    char operator;
+    struct node* left;
+    struct node* right;
+} expression;
+
+typedef struct node {
+    int isExpression;
+    union wrapper {
+        expression expr;
+        int number;
+    } value;
+} node;
+
+void printEquation(node* root) {
+    
+    if (root->isExpression) {
+        printf("(");
+        
+        printEquation(root->value.expr.left);
+        
+        printf("%c", root->value.expr.operator);
+        
+        printEquation(root->value.expr.right);
+        
+        printf(")");
+    } else {
+        printf("%d", root->value.number);
+    }
+    
+}
+
+node* constructNumber(int number) {
+    node* n = malloc(sizeof(node));
+    n->isExpression = 0;
+    n->value.number = number;
+    return n;
+}
+
+char getNextOperator(char operator) {
+    switch(operator) {
+        case '+': return '-';
+        case '-': return '*';
+        case '*': return '/';
+        case '/': return '+';
+    }
+}
+
+// Get the value of an equation
+int getValue(node* root) {
+    if (!root->isExpression) {
+        return root->value.number;
+    }
+
+    // Get the value of the left side
+    int a = getValue(root->value.expr.left);
+    // Get the value of the right side
+    int b = getValue(root->value.expr.right);
+
+    // Calculate the value
+    switch (root->value.expr.operator) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '*': return a * b;
+        case '/': return a / b;
+    }
+}
+
+int setNumbers(node* root, int size, int numbers[]) {
+    if (size == 0) {
+        return 0;
+    }
+    
+    if (root->isExpression) {
+        // Set leftSize = the amount of numbers on the left side
+        int leftSize = setNumbers(root->value.expr.left, size, numbers);
+        // Set rightSize = the amount of numbers on the right size
+        int rightSize = setNumbers(root->value.expr.right, size - leftSize, &numbers[leftSize]);
+        return leftSize + rightSize;
+    } else {
+        root->value.number = numbers[0];
+        return 1;
+    }
+}
+
+int isValidEquation(node* root) {
+    if (!root->isExpression) {
+        return 1;
+    }
+    
+    int left = isValidEquation(root->value.expr.left);
+    int right = isValidEquation(root->value.expr.left);
+    int isValid = left && right;
+    
+    if (root->value.expr.operator == '/') {
+        int lv = getValue(root->value.expr.left);
+        int rv = getValue(root->value.expr.right);
+        isValid = isValid && lv % rv == 0;
+    }
+    
+    return isValid;
+}
+
+void freeEquation(node* root) {
+    // If the node is an expression, first free the left and right
+    if (root->isExpression) {
+        freeEquation(root->value.expr.left);
+        freeEquation(root->value.expr.right);
+    }
+    
+    free(root);
+}
+
+// Shift all elements to the left by 1, and move the first to the end
+void rotate(int size, int numbers[]) {
+    int first = numbers[0];
+    for (int i = 1; i < size; i++) {
+        numbers[i - 1] = numbers[i];
+    }
+    numbers[size - 1] = first;
+}
+
+node* calculateEquation(int size, int numbers[], int goal) {
+    // If there is only 1 element left, return it if it is equal to goal
+    if (size == 1) {
+        if (goal != numbers[0]) {
+            return NULL;
+        }
+        return constructNumber(numbers[0]);            
+    }
+    
+    // Set the right equal to the first element
+    node *right = constructNumber(numbers[0]);
+    node *left = NULL;
+    char operator = '+';
+
+    // let k = the amount of numbers on the right side of the equation
+    for (int k = 1; k <= (size + 1) / 2; k++) {
+        for (int i = 0; i < size; i++) {
+            // Set the numbers on the right equation to the numbers in numbers[]
+            setNumbers(right, k, numbers);
+            if (!isValidEquation(right)) {
+                rotate(size, numbers);
+                continue;
+            }
+            
+            int rValue = getValue(right);
+           
+            // Addition
+            int subgoal = goal - rValue;
+            left = calculateEquation(size - k, &numbers[k], subgoal);
+            if (left != NULL) {
+                operator = '+';
+                break;
+            }
+            
+            // Subtraction
+            subgoal = goal + rValue;
+            left = calculateEquation(size - k, &numbers[k], subgoal);
+            if (left != NULL) {
+                operator = '-';
+                break;
+            }
+            
+            // Multiplication
+            if (rValue > 0 && goal % rValue == 0) {
+                subgoal = goal / rValue;
+                left = calculateEquation(size - k, &numbers[k], subgoal);
+                if (left != NULL) {
+                    operator = '*';
+                    break;
+                }
+            }
+            
+            // Division
+            subgoal = goal * rValue;
+            left = calculateEquation(size - k, &numbers[k], subgoal);
+            if (left != NULL) {
+                operator = '/';
+                break;
+            }
+            rotate(size, numbers);
+        }
+        
+        if (left != NULL) {
+            // Found valid equation
+            break;
+        } else {
+            if (right->isExpression && right->value.expr.operator != '/') {
+                right->value.expr.operator = getNextOperator(right->value.expr.operator);
+                k--;
+                continue;
+            }
+            
+            // Add the another number to the right equation
+            node* n = malloc(sizeof(node));
+            n->isExpression = 1;
+            n->value.expr.right = right;
+            n->value.expr.left = constructNumber(numbers[1]);
+            n->value.expr.operator = '+';
+            right = n;
+        }
+    }
+    
+    // If we failed to find anything, clean up and return NULL
+    if (left == NULL) {
+        freeEquation(right);
+        return NULL;
+    }
+    
+    // Construct equation and return it
+    node* n = malloc(sizeof(node));
+    n->isExpression = 1;
+    n->value.expr.left = left;
+    n->value.expr.right = right;
+    n->value.expr.operator = operator;
+    
+    return n;
+}
+
+int main(int argc, char* argv[]) {
+    int numbers[4];
+    for (int i = 0; i < 4; i++) {
+        scanf("%d", &numbers[i]);
+    }
+    
+    node* eq = calculateEquation(4, numbers, 24);
+    if (eq == NULL) {
+        printf("No equation\n");
+    } else {
+        printEquation(eq);  
+        freeEquation(eq);
+    }
+}
+\end{lstlisting}
+
+\section{Test results}
+
+\begin{itemize}
+
+\item Input: (normal case)
+\begin{lstlisting}[style = stdio]
+1 2 3 4
+\end{lstlisting}
+
+  Output:
+\begin{lstlisting}[style = stdio]
+(((4*3)*2)*1)
+\end{lstlisting}
+
+\item Input: (normal case)
+\begin{lstlisting}[style = stdio]
+3 6 7 5
+\end{lstlisting}
+
+  Output:
+\begin{lstlisting}[style = stdio]
+(((7-5)+6)*3)
+\end{lstlisting}
+
+\item Input: (normal case)
+\begin{lstlisting}[style = stdio]
+5 4 2 8
+\end{lstlisting}
+
+  Output:
+\begin{lstlisting}[style = stdio]
+(((5*8)/2)+4)
+\end{lstlisting}
+
+\item Input (sub-equation on the right side)
+\begin{lstlisting}[style = stdio]
+5 6 7 7
+\end{lstlisting}
+
+  Output:
+\begin{lstlisting}[style = stdio]
+((5-(7/7))*6)
+\end{lstlisting}
+
+\item Input: (no valid solution)
+\begin{lstlisting}[style = stdio]
+6 7 7 8
+\end{lstlisting}
+
+  Output:
+\begin{lstlisting}[style = stdio]
+No equation
+\end{lstlisting}
+
+
+\end{itemize}
+
+\section{Evaluation}
+Due to the recursive design of our algorithm, the resulting program is quite readable and understandable. Given the analysis of the problem, recursion seemed like the most optimal choice. Provided with the constraints for the input, the program successfully produces a valid equation that equals 24, or successfully determines that no such equation exists. This program theoretically can also be used for targets other than 24, or for sets that contain more than 4 elements, although that would require more evaluation to prove true. Due to the nature of the algorithm, this program priorities sub-equations to be on the left size, and will only find a solution where an equation is on the right when it cannot find a satisfying equation on the left.
+
+	We choose a recursive approach to solve this problem. Another algorithm would be one that loops through all possible combinations of numbers and operators, although the time complexity of such a program is much larger than a recursive one. Such an algorithm would also need to take into account different positioning of parentheses, which would add more complexity as well. 
+
+\end{document}
